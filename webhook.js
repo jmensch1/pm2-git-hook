@@ -35,7 +35,8 @@ function startWebhookServer(config) {
   if (missingFields.length) {
     console.log(`The configuration for ${config.appName} is missing these required fields: ${missingFields}.`);
     return Promise.resolve();
-  }
+  } else
+    console.log(config);
 
   // if they are, assign to constants
   const REPO_OWNER    = config.repoOwner,
@@ -129,13 +130,14 @@ function startWebhookServer(config) {
             if (valid)
               switch(event) {
                 case 'ping':
-                  console.log('Webhook successfully created.');
+                  console.log(`${APP_NAME}: Webhook successfully created.`);
                   break;
-                default:
-                  exec(HOOK_COMMAND, (err, stdout, stderr) => {
-                    console.log(stdout);
-                  });
-                break;
+                case 'push':
+                  let branch = JSON.parse(body).ref.replace('refs/heads/', '');
+                  console.log(`${APP_NAME}: push to branch ${branch}.`);
+                  if (branch === REPO_BRANCH)
+                    exec(HOOK_COMMAND);
+                  break;
               }
 
             response.writeHead(valid ? 200 : 403);
