@@ -50,7 +50,8 @@ function startWebhookServer(config) {
         GIT_PASSWORD  = config.gitPassword,
         HOOK_COMMAND  = config.hookCommand,
         HOOK_SECRET   = config.hookSecret,
-        APP_NAME      = config.appName;
+        APP_NAME      = config.appName,
+        PM_CWD        = config.pmCwd;
 
   ////////////////// FUNCTIONS //////////////////// 
 
@@ -71,7 +72,7 @@ function startWebhookServer(config) {
         stdout = JSON.parse(stdout);
         if (err)
           reject(stderr);
-        else if (stdout.message)
+        else if (stdout && stdout.message)
           reject(stdout.message);
         else
           resolve(stdout);
@@ -133,10 +134,21 @@ function startWebhookServer(config) {
                   console.log(`${APP_NAME}: Webhook successfully created.`);
                   break;
                 case 'push':
-                  let branch = JSON.parse(body).ref.replace('refs/heads/', '');
+                  body = JSON.parse(body);
+                  let branch = body.ref.replace('refs/heads/', '');
+
                   console.log(`${APP_NAME}: push to branch ${branch}.`);
-                  if (branch === REPO_BRANCH)
-                    exec(HOOK_COMMAND);
+                  console.log(`commit message: ${body.head_commit.message}.`);
+
+                  if (branch === REPO_BRANCH) {
+                    console.log(`running command: ${HOOK_COMMAND}`);
+                    exec(HOOK_COMMAND, { cwd: PM_CWD }, (err, stdout, stderr) => {
+                      console.log('ERROR:',  err);
+                      console.log('STDOUT:', stdout);
+                      console.log('STDERR:', stderr);
+                    });
+                  }
+                  
                   break;
               }
 

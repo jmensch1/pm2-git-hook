@@ -69,6 +69,7 @@ pmx.initModule({
 
             let ecoConfig = JSON.parse(proc.pm2_env.env.autohook);
             ecoConfig.appName = proc.name;
+            ecoConfig.pmCwd = proc.pm2_env.pm_cwd;
 
             ecoConfigs.push(ecoConfig);
             appNames.push(proc.name);
