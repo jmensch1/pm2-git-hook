@@ -25,7 +25,8 @@ function startWebhookServer(config) {
         GIT_USERNAME  = config.gitUsername,
         GIT_PASSWORD  = config.gitPassword,
         HOOK_COMMAND  = config.hookCommand,
-        HOOK_SECRET   = config.hookSecret;
+        HOOK_SECRET   = config.hookSecret,
+        APP_NAME      = config.appName;
 
   ////////////////// FUNCTIONS //////////////////// 
 
@@ -137,7 +138,7 @@ function startWebhookServer(config) {
       cert: fs.readFileSync(SSL_CERT_PATH, 'utf8')
     }, webhookServer)
     .listen(PORT, () => {
-      console.log(`Webhook server running on port ${PORT}.`);
+      console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
       console.log('Checking whether webhook is active.');
       Promise.all([
         getExternalIP(),

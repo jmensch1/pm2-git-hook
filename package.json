@@ -11,19 +11,7 @@
   "dependencies": {
     "bluebird": "^3.5.0",
     "crypto": "^1.0.1",
+    "pm2": "^2.6.1",
     "pmx": "^1.2.0"
-  },
-  "config": {
-    "repoOwner": "code-flower",
-    "repoName": "cloc-server",
-    "repoBranch": "master",
-    "hostName": "",
-    "port": 9000,
-    "sslKeyPath": "../sslCert/privkey.pem",
-    "sslCertPath": "../sslCert/cert.pem",
-    "gitUsername": "",
-    "gitPassword": "",
-    "hookCommand": "echo 'running pull and reload'",
-    "hookSecret": ""
   }
 }

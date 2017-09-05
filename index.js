@@ -2,6 +2,7 @@
 //////////////// IMPORTS ///////////////////
 
 const pmx = require('pmx'),
+      pm2 = require('pm2'),
       startWebhookServer = require('./webhook');
 
 ///////////////// THE MODULE //////////////////
@@ -46,6 +47,29 @@ pmx.initModule({
   } else
     console.log("Module running:", config.module_conf);
 
-  startWebhookServer(config.module_conf);
+  pm2.connect(err => {
+    pm2.list((err, list) => {
 
+      // run through the list and get the autohook config for each unique app
+      let ecoConfigs = [], appNames = [];
+      list.forEach(proc => {
+        if (proc.pm2_env.env.autohook &&
+            appNames.indexOf(proc.name) === -1) {
+
+          let ecoConfig = JSON.parse(proc.pm2_env.env.autohook);
+          ecoConfig.appName = proc.name;
+
+          ecoConfigs.push(ecoConfig);
+          appNames.push(proc.name);
+        }
+      });
+     
+      console.log("Starting servers for these configs:\n", ecoConfigs);
+      ecoConfigs.forEach(startWebhookServer);
+
+      pm2.disconnect();
+    });
+  });
 });
+
+
