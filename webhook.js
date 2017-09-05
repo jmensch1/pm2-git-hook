@@ -15,6 +15,29 @@ function startWebhookServer(config) {
 
   /////////////////// CONFIG ////////////////////
 
+  console.log(`---------------${config.appName}----------------`);
+
+  // make sure all required fields are present
+  const requiredFields = [
+    'repoOwner',
+    'repoName',
+    'repoBranch',
+    'port',
+    'sslKeyPath',
+    'sslCertPath',
+    'gitUsername',
+    'gitPassword',
+    'hookCommand',
+    'hookSecret'
+  ];
+
+  let missingFields = requiredFields.filter(rF => !config[rF]);
+  if (missingFields.length) {
+    console.log(`The configuration for ${config.appName} is missing these required fields: ${missingFields}.`);
+    return Promise.resolve();
+  }
+
+  // if they are, assign to constants
   const REPO_OWNER    = config.repoOwner,
         REPO_NAME     = config.repoName,
         REPO_BRANCH   = config.repoBranch,
@@ -44,21 +67,25 @@ function startWebhookServer(config) {
     return new Promise((resolve, reject) => {
       let curl = `curl ${hooksUrl()}`;
       let proc = exec(curl, (err, stdout, stderr) => {
+        stdout = JSON.parse(stdout);
         if (err)
           reject(stderr);
+        else if (stdout.message)
+          reject(stdout.message);
         else
-          resolve(JSON.parse(stdout));
+          resolve(stdout);
       });
     });
   }
 
   function webhookExists(externalIP, webhookData) {
-    let IPs = webhookData.map(wh => wh.config.url.match(/:\/\/(.*?):/)[1]);
+    let thisHost = externalIP + `:${PORT}`;
+    let existingHosts = webhookData.map(wh => wh.config.url.match(/:\/\/(.*?)\//)[1]);
 
-    console.log('External IP:', externalIP);
-    console.log('Existing webhook IPs:', IPs);
+    console.log(`${APP_NAME} host:`, thisHost);
+    console.log('Existing webhook hosts:', existingHosts);
 
-    return IPs.indexOf(externalIP) !== -1;
+    return existingHosts.indexOf(thisHost) !== -1;
   }
 
   function createWebhook(externalIP) {
@@ -130,31 +157,38 @@ function startWebhookServer(config) {
 
   ///////////////////// MAIN ///////////////////////
 
-  // start the webhookServer, then check to see if a
-  // webhook already exists. If not, create one.
-  https
-    .createServer({
-      key:  fs.readFileSync(SSL_KEY_PATH,  'utf8'),
-      cert: fs.readFileSync(SSL_CERT_PATH, 'utf8')
-    }, webhookServer)
-    .listen(PORT, () => {
-      console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
-      console.log('Checking whether webhook is active.');
-      Promise.all([
-        getExternalIP(),
-        getWebhookData()
-      ])
-      .spread((externalIP, webhookData) => {
-        if (webhookExists(externalIP, webhookData)) {
-          console.log('Webhook is active.');
-          return Promise.resolve();
-        } else {
-          console.log('Creating webhook...');
-          return createWebhook(externalIP);
-        }
-      })
-      .catch(console.log);
-    });
+  // start the webhook server, then check to see if a
+  // webhook already exists on github. If not, create one.
+  return new Promise((resolve, reject) => {
+    https
+      .createServer({
+        key:  fs.readFileSync(SSL_KEY_PATH,  'utf8'),
+        cert: fs.readFileSync(SSL_CERT_PATH, 'utf8')
+      }, webhookServer)
+      .listen(PORT, () => {
+
+        console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
+        console.log('Checking whether webhook is active.');
+
+        Promise.all([
+          getExternalIP(),
+          getWebhookData()
+        ])
+        .spread((externalIP, webhookData) => {
+          if (webhookExists(externalIP, webhookData)) {
+            console.log('Webhook is active.');
+            return Promise.resolve();
+          } else {
+            console.log('Creating webhook...');
+            return createWebhook(externalIP);
+          }
+        })
+        .catch(err => console.log("ERROR:", err))
+        .then(resolve);
+
+      });
+  });
+
 }
 
 //////////////// EXPORTS ///////////////////

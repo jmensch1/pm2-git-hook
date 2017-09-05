@@ -3,6 +3,7 @@
 
 const pmx = require('pmx'),
       pm2 = require('pm2'),
+      Promise = require('bluebird'),
       startWebhookServer = require('./webhook');
 
 ///////////////// THE MODULE //////////////////
@@ -42,34 +43,53 @@ pmx.initModule({
 }, function(err, config) {
 
   if (err) {
-    console.log("Error running module:", err);
+    console.log('Error running pm2-autohook:', err);
     return false;
   } else
-    console.log("Module running:", config.module_conf);
+    console.log('pm2-autohook is running.');
 
-  pm2.connect(err => {
-    pm2.list((err, list) => {
+  pmx.action('test', reply => reply('pm2-autohook is running.'));
 
-      // run through the list and get the autohook config for each unique app
-      let ecoConfigs = [], appNames = [];
-      list.forEach(proc => {
-        if (proc.pm2_env.env.autohook &&
-            appNames.indexOf(proc.name) === -1) {
+  ////////////////////// FUNCTIONS //////////////////////
 
-          let ecoConfig = JSON.parse(proc.pm2_env.env.autohook);
-          ecoConfig.appName = proc.name;
+  // extract the config params from all the ecosystem configs
+  // that have an env.autohook property
+  function getEcoConfigs(cb) {
+    pm2.connect(err => {
+      pm2.list((err, list) => {
 
-          ecoConfigs.push(ecoConfig);
-          appNames.push(proc.name);
-        }
+        // the array to be returned
+        let ecoConfigs = [];
+
+        // run through the list and get the config for each unique app name
+        let appNames = [];
+        list.forEach(proc => {
+          if (proc.pm2_env.env.autohook &&
+              appNames.indexOf(proc.name) === -1) {
+
+            let ecoConfig = JSON.parse(proc.pm2_env.env.autohook);
+            ecoConfig.appName = proc.name;
+
+            ecoConfigs.push(ecoConfig);
+            appNames.push(proc.name);
+          }
+        });
+       
+        pm2.disconnect();
+        cb(ecoConfigs);
       });
-     
-      console.log("Starting servers for these configs:\n", ecoConfigs);
-      ecoConfigs.forEach(startWebhookServer);
-
-      pm2.disconnect();
     });
+  }
+
+  //////////////////////// MAIN /////////////////////////
+
+  getEcoConfigs(configs => {
+    console.log('Apps that configure an autohook:', configs.map(c => c.appName));
+
+    // serially start webhook servers for each config 
+    Promise.mapSeries(configs, startWebhookServer);
   });
+
 });
 
 
