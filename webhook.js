@@ -4,6 +4,7 @@
 const Promise = require('bluebird'),
       crypto = require('crypto'),
       fs = require('fs'),
+      http = require('http'),
       https = require('https'),
       { exec } = require('child_process'),
       url = require('url'),
@@ -42,6 +43,7 @@ function startWebhookServer(config) {
   const REPO_OWNER    = config.repoOwner,
         REPO_NAME     = config.repoName,
         REPO_BRANCH   = config.repoBranch,
+        PROTOCOL      = config.protocol,
         HOSTNAME      = config.hostName,
         PORT          = config.port,
         SSL_KEY_PATH  = config.sslKeyPath,
@@ -96,7 +98,7 @@ function startWebhookServer(config) {
         name:   'web',
         active: true,
         config: {
-          url:          `https://${externalIP}:${PORT}/webhook`,
+          url:          `${PROTOCOL}://${externalIP}:${PORT}/webhook`,
           content_type: 'json',
           insecure_ssl: '1',
           secret:       HOOK_SECRET
@@ -169,38 +171,43 @@ function startWebhookServer(config) {
     }
   }
 
+  function createServer(webhookServer) {
+    if (PROTOCOL === 'https')
+      return https.createServer({
+        key:  fs.readFileSync(SSL_KEY_PATH,  'utf8'),
+        cert: fs.readFileSync(SSL_CERT_PATH, 'utf8')
+      }, webhookServer);
+    else
+      return http.createServer(webhookServer);
+  }
+
   ///////////////////// MAIN ///////////////////////
 
   // start the webhook server, then check to see if a
   // webhook already exists on github. If not, create one.
   return new Promise((resolve, reject) => {
-    https
-      .createServer({
-        key:  fs.readFileSync(SSL_KEY_PATH,  'utf8'),
-        cert: fs.readFileSync(SSL_CERT_PATH, 'utf8')
-      }, webhookServer)
-      .listen(PORT, () => {
+    createServer(webhookServer).listen(PORT, () => {
 
-        console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
-        console.log('Checking whether webhook is active.');
+      console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
+      console.log('Checking whether webhook is active.');
 
-        Promise.all([
-          getExternalIP(),
-          getWebhookData()
-        ])
-        .spread((externalIP, webhookData) => {
-          if (webhookExists(externalIP, webhookData)) {
-            console.log('Webhook is active.');
-            return Promise.resolve();
-          } else {
-            console.log('Creating webhook...');
-            return createWebhook(externalIP);
-          }
-        })
-        .catch(err => console.log("ERROR:", err))
-        .then(resolve);
+      Promise.all([
+        getExternalIP(),
+        getWebhookData()
+      ])
+      .spread((externalIP, webhookData) => {
+        if (webhookExists(externalIP, webhookData)) {
+          console.log('Webhook is active.');
+          return Promise.resolve();
+        } else {
+          console.log('Creating webhook...');
+          return createWebhook(externalIP);
+        }
+      })
+      .catch(err => console.log("ERROR:", err))
+      .then(resolve);
 
-      });
+    });
   });
 
 }
