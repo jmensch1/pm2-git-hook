@@ -48,8 +48,6 @@ pmx.initModule({
   } else
     console.log('pm2-autohook is running.');
 
-  pmx.action('test', reply => reply('pm2-autohook is running.'));
-
   ////////////////////// FUNCTIONS //////////////////////
 
   // extract the config params from all the ecosystem configs
@@ -84,11 +82,18 @@ pmx.initModule({
 
   //////////////////////// MAIN /////////////////////////
 
-  getEcoConfigs(configs => {
-    console.log('Apps that configure an autohook:', configs.map(c => c.appName));
+  pmx.action('start', reply => {
+    getEcoConfigs(configs => {
+      console.log('Apps that configure an autohook:', configs.map(c => c.appName));
 
-    // serially start webhook servers for each config 
-    Promise.mapSeries(configs, startWebhookServer);
+      // serially start webhook servers for each config 
+      Promise
+        .mapSeries(configs, startWebhookServer)
+        .then(() => {
+          console.log('Done starting webhook server(s).');
+          reply({ success: true });
+        });
+    });
   });
 
 });

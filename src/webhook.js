@@ -161,7 +161,7 @@ function startWebhookServer(config) {
 
       case '/ping':
         response.writeHead(404);
-        response.end('server is listening');
+        response.end('Webhook server is listening.');
         break;
 
       default:
