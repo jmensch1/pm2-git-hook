@@ -50,52 +50,51 @@ pmx.initModule({
 
   ////////////////////// FUNCTIONS //////////////////////
 
-  // extract the config params from all the ecosystem configs
-  // that have an env.autohook property
-  function getEcoConfigs(cb) {
-    pm2.connect(err => {
-      pm2.list((err, list) => {
+  function getConfig(appName) {
+    return new Promise((resolve, reject) => {
+      pm2.connect(err => {
+        pm2.list((err, list) => {
 
-        // the array to be returned
-        let ecoConfigs = [];
+          let proc = (() => {
+            for (let i = 0; i < list.length; i++)
+              if (list[i].name === appName)
+                return list[i];
+            return null;
+          })();
 
-        // run through the list and get the config for each unique app name
-        let appNames = [];
-        list.forEach(proc => {
-          if (proc.pm2_env.env.autohook &&
-              appNames.indexOf(proc.name) === -1) {
-
-            let ecoConfig = JSON.parse(proc.pm2_env.env.autohook);
-            ecoConfig.appName = proc.name;
-            ecoConfig.pmCwd = proc.pm2_env.pm_cwd;
-
-            ecoConfigs.push(ecoConfig);
-            appNames.push(proc.name);
+          if (!proc) {
+            reject(`There is no running process with the name: ${appName}.`);
+            return;
           }
+
+          if (!proc.pm2_env.env.autohook) {
+            reject(`There is no pm2-autohook configuration for ${appName}.`);
+            return;
+          }
+
+          let config = JSON.parse(proc.pm2_env.env.autohook);
+          config.appName = appName;
+          config.pmCwd = proc.pm2_env.pm_cwd;
+
+          resolve(config);
         });
-       
-        pm2.disconnect();
-        cb(ecoConfigs);
       });
     });
   }
 
   //////////////////////// MAIN /////////////////////////
 
-  pmx.action('start', reply => {
-    getEcoConfigs(configs => {
-      console.log('Apps that configure an autohook:', configs.map(c => c.appName));
-
-      // serially start webhook servers for each config 
-      Promise
-        .mapSeries(configs, startWebhookServer)
-        .then(() => {
-          console.log('Done starting webhook server(s).');
-          reply({ success: true });
-        });
-    });
+  pmx.action('start', (appName, reply) => {
+    getConfig(appName)
+      .then(config => {
+        console.log('config:', config);
+        reply({ success: true });
+      })
+      .catch(err => {
+        console.log('error starting pm2-autohook:', err);
+        reply({ success: false, error: err });
+      });
   });
-
 });
 
 
