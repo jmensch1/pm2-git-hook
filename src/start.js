@@ -55,7 +55,7 @@ function startWebhookServer(config) {
         APP_NAME      = config.appName,
         PM_CWD        = config.pmCwd;
 
-  ////////////////// FUNCTIONS //////////////////// 
+  ////////////////// FUNCTIONS ////////////////////
 
   function getExternalIP() {
     return httpHelpers.get('http://ipinfo.io/ip')
@@ -63,7 +63,7 @@ function startWebhookServer(config) {
   }
 
   function hooksUrl() {
-    return `https://${GIT_USERNAME}:${GIT_PASSWORD}` + 
+    return `https://${GIT_USERNAME}:${GIT_PASSWORD}` +
            `@api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/hooks`;
   }
 
@@ -111,7 +111,7 @@ function startWebhookServer(config) {
         else
           resolve(stdout);
       });
-    }); 
+    });
   }
 
   function validSignature(xHubSig, body) {
@@ -121,7 +121,7 @@ function startWebhookServer(config) {
   }
 
   function webhookServer(request, response) {
-    let urlInfo = url.parse(request.url, true);  
+    let urlInfo = url.parse(request.url, true);
     switch(urlInfo.pathname) {
       case '/webhook':
         httpHelpers.getReqBody(request)
@@ -150,7 +150,7 @@ function startWebhookServer(config) {
                       console.log('STDERR:', stderr);
                     });
                   }
-                  
+
                   break;
               }
 
@@ -161,7 +161,7 @@ function startWebhookServer(config) {
 
       case '/ping':
         response.writeHead(404);
-        response.end('Webhook server is listening.');
+        response.end('Webhook server is listening.\n');
         break;
 
       default:
@@ -185,30 +185,58 @@ function startWebhookServer(config) {
 
   // start the webhook server, then check to see if a
   // webhook already exists on github. If not, create one.
+  // return new Promise((resolve, reject) => {
+  //   let server = createServer(webhookServer);
+
+  //   server.listen(PORT, () => {
+
+  //     console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
+  //     console.log('Checking whether webhook is active.');
+
+  //     Promise.all([
+  //       getExternalIP(),
+  //       getWebhookData()
+  //     ])
+  //     .spread((externalIP, webhookData) => {
+  //       if (webhookExists(externalIP, webhookData)) {
+  //         console.log('Webhook is active.');
+  //         return Promise.resolve();
+  //       } else {
+  //         console.log('Creating webhook...');
+  //         return createWebhook(externalIP).then(JSON.parse).then(console.log);
+  //       }
+  //     })
+  //     .then(() => resolve({ server))
+  //     .catch(err => console.log("ERROR:", err));
+
+  //   });
+  // });
+
   return new Promise((resolve, reject) => {
-    createServer(webhookServer).listen(PORT, () => {
-
+    let server = createServer(webhookServer);
+    server.listen(PORT, () => {
       console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
-      console.log('Checking whether webhook is active.');
-
-      Promise.all([
-        getExternalIP(),
-        getWebhookData()
-      ])
-      .spread((externalIP, webhookData) => {
-        if (webhookExists(externalIP, webhookData)) {
-          console.log('Webhook is active.');
-          return Promise.resolve();
-        } else {
-          console.log('Creating webhook...');
-          return createWebhook(externalIP);
-        }
-      })
-      .catch(err => console.log("ERROR:", err))
-      .then(resolve);
-
+      getExternalIP()
+        .then(createWebhook)
+        .then(JSON.parse)
+        .then(webhook => {
+          resolve({ server, webhook })
+        })
+        .catch(console.log);
     });
   });
+
+
+
+
+  // return new Promise((resolve, reject) => {
+  //   let server = createServer(webhookServer);
+
+  //   server.listen(PORT, () => {
+  //     console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
+  //     resolve(server);
+  //   });
+  // });
 
 }
 
