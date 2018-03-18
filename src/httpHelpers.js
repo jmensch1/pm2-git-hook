@@ -2,8 +2,7 @@
 ////////////////////// IMPORTS //////////////////////////
 
 const http = require('http'),
-      https = require('https'),
-      Promise = require('bluebird');
+      https = require('https');
 
 ///////////////////// FUNCTIONS /////////////////////////
 

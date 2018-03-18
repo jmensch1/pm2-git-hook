@@ -1,11 +1,11 @@
 
-//////////////// IMPORTS ///////////////////
+/////////////////// IMPORTS ///////////////////
 
 const pmx = require('pmx'),
       initConfig = require('./initConfig'),
       getAppConfig = require('./getAppConfig'),
-      startServer = require('./start'),
-      stopServer = require('./stop');
+      validateConfig = require('./validateConfig'),
+      startServer = require('./start');
 
 ///////////////// THE MODULE //////////////////
 
@@ -17,50 +17,34 @@ pmx.initModule(initConfig, function(err, config) {
   } else
     console.log('pm2-autohook is running.');
 
-  //////////////////////// MAIN /////////////////////////
+  ////////////// ACTIONS /////////////
 
   let servers = {};
 
   pmx.action('start', (appName, reply) => {
-    if (servers[appName]) {
-      let error = `Webhook server already running for ${appName}.`;
-      console.log(error);
-      reply({ success: false, error});
-    } else {
+    if (servers[appName])
+      reply({ error: `Webhook server already running for ${appName}.` });
+    else
       getAppConfig(appName)
+        .then(validateConfig)
         .then(startServer)
-        .then(data => {
-          servers[appName] = data;
+        .then(server => {
+          servers[appName] = server;
           reply({ success: true });
         })
         .catch(error => {
-          reply({ success: false }, error);
+          reply({ error });
         });
-    }
   });
 
   pmx.action('stop', (appName, reply) => {
-    if (!servers[appName]) {
-      let error = `There is no webhook server running for ${appName}.`;
-      console.log(error);
-      reply({ success: false, error });
-    } else {
-      getAppConfig(appName)
-        .then(config => {
-          return stopServer(
-            config,
-            servers[appName].server,
-            servers[appName].webhook
-          );
-        })
-        .then(() => {
-          delete servers[appName];
-          reply({ success: true });
-        })
-        .catch(error => {
-          reply({ success: false }, error);
-        });
-    }
+    if (!servers[appName])
+      reply({ error: `There is no webhook server running for ${appName}.` });
+    else
+      servers[appName].close(() =>{
+        delete servers[appName];
+        reply({ success: true });
+      });
   });
 
   pmx.action('list', reply => {

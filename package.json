@@ -9,7 +9,6 @@
   "author": "Jake Mensch",
   "license": "ISC",
   "dependencies": {
-    "bluebird": "^3.5.0",
     "crypto": "^1.0.1",
     "pm2": "^2.6.1",
     "pmx": "^1.2.0"

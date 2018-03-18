@@ -1,7 +1,7 @@
 
 const pm2 = require('pm2');
 
-module.exports =   function getAppConfig(appName) {
+module.exports = (appName) => {
   return new Promise((resolve, reject) => {
     pm2.connect(err => {
       pm2.list((err, list) => {
@@ -31,4 +31,4 @@ module.exports =   function getAppConfig(appName) {
       });
     });
   });
-}
+};

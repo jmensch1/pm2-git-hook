@@ -1,8 +1,7 @@
 
 //////////////// IMPORTS ///////////////////
 
-const Promise = require('bluebird'),
-      crypto = require('crypto'),
+const crypto = require('crypto'),
       fs = require('fs'),
       http = require('http'),
       https = require('https'),
@@ -12,117 +11,39 @@ const Promise = require('bluebird'),
 
 //////////////// PRIVATE ///////////////////
 
-function startWebhookServer(config) {
+function startServer(config) {
 
   /////////////////// CONFIG ////////////////////
 
-  console.log(`---------------${config.appName}----------------`);
+  config = {
+    hookCommand:  config.hookCommand,
+    branch:       config.branch || 'master',
+    port:         config.port || 9000,
+    protocol:     config.protocol || 'http',
+    sslKeyPath:   config.sslKeyPath,
+    sslCertPath:  config.sslCertPath,
+    hookSecret:   config.hookSecret,
+    appName:      config.appName,
+    pmCwd:        config.pmCwd
+  };
 
-  // make sure all required fields are present
-  const requiredFields = [
-    'repoOwner',
-    'repoName',
-    'repoBranch',
-    'port',
-    'sslKeyPath',
-    'sslCertPath',
-    'gitUsername',
-    'gitPassword',
-    'hookCommand',
-    'hookSecret'
-  ];
+  /////////////////// GLOBALS /////////////////////
 
-  let missingFields = requiredFields.filter(rF => !config[rF]);
-  if (missingFields.length) {
-    console.log(`The configuration for ${config.appName} is missing these required fields: ${missingFields}.`);
-    return Promise.resolve();
-  } else
-    console.log(config);
-
-  // if they are, assign to constants
-  const REPO_OWNER    = config.repoOwner,
-        REPO_NAME     = config.repoName,
-        REPO_BRANCH   = config.repoBranch,
-        PROTOCOL      = config.protocol,
-        HOSTNAME      = config.hostName,
-        PORT          = config.port,
-        SSL_KEY_PATH  = config.sslKeyPath,
-        SSL_CERT_PATH = config.sslCertPath,
-        GIT_USERNAME  = config.gitUsername,
-        GIT_PASSWORD  = config.gitPassword,
-        HOOK_COMMAND  = config.hookCommand,
-        HOOK_SECRET   = config.hookSecret,
-        APP_NAME      = config.appName,
-        PM_CWD        = config.pmCwd;
+  let lastHook = null;
 
   ////////////////// FUNCTIONS ////////////////////
 
-  function getExternalIP() {
-    return httpHelpers.get('http://ipinfo.io/ip')
-      .then(ip => Promise.resolve(ip.replace('\n', '')));
-  }
-
-  function hooksUrl() {
-    return `https://${GIT_USERNAME}:${GIT_PASSWORD}` +
-           `@api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/hooks`;
-  }
-
-  function getWebhookData() {
-    return new Promise((resolve, reject) => {
-      let curl = `curl ${hooksUrl()}`;
-      let proc = exec(curl, (err, stdout, stderr) => {
-        stdout = JSON.parse(stdout);
-        if (err)
-          reject(stderr);
-        else if (stdout && stdout.message)
-          reject(stdout.message);
-        else
-          resolve(stdout);
-      });
-    });
-  }
-
-  function webhookExists(externalIP, webhookData) {
-    let thisHost = externalIP + `:${PORT}`;
-    let existingHosts = webhookData.map(wh => wh.config.url.match(/:\/\/(.*?)\//)[1]);
-
-    console.log(`${APP_NAME} host:`, thisHost);
-    console.log('Existing webhook hosts:', existingHosts);
-
-    return existingHosts.indexOf(thisHost) !== -1;
-  }
-
-  function createWebhook(externalIP) {
-    return new Promise((resolve, reject) => {
-      let payload = JSON.stringify({
-        name:   'web',
-        active: true,
-        config: {
-          url:          `${PROTOCOL}://${externalIP}:${PORT}/webhook`,
-          content_type: 'json',
-          insecure_ssl: '1',
-          secret:       HOOK_SECRET
-        }
-      });
-      let curl = `curl -H "Content-Type: application/json" -X POST -d '${payload}' ${hooksUrl()}`;
-      let proc = exec(curl, (err, stdout, stderr) => {
-        if (err)
-          reject(stderr);
-        else
-          resolve(stdout);
-      });
-    });
-  }
-
   function validSignature(xHubSig, body) {
-    let hmac = crypto.createHmac('sha1', HOOK_SECRET);
+    let hmac = crypto.createHmac('sha1', config.hookSecret);
     hmac.update(body);
     return xHubSig === 'sha1=' + hmac.digest('hex');
   }
 
   function webhookServer(request, response) {
     let urlInfo = url.parse(request.url, true);
+
     switch(urlInfo.pathname) {
+
       case '/webhook':
         httpHelpers.getReqBody(request)
           .then(body => {
@@ -133,21 +54,27 @@ function startWebhookServer(config) {
             if (valid)
               switch(event) {
                 case 'ping':
-                  console.log(`${APP_NAME}: Webhook successfully created.`);
+                  console.log(`${config.appName}: received ping from github.`);
                   break;
                 case 'push':
                   body = JSON.parse(body);
                   let branch = body.ref.replace('refs/heads/', '');
 
-                  console.log(`${APP_NAME}: push to branch ${branch}.`);
-                  console.log(`commit message: ${body.head_commit.message}.`);
+                  if (branch === config.branch) {
+                    console.log(`${config.appName}: push to branch ${branch}.`);
+                    console.log(`commit message: ${body.head_commit.message}.`);
+                    console.log(`running hook command: "${config.hookCommand}"`);
 
-                  if (branch === REPO_BRANCH) {
-                    console.log(`running command: ${HOOK_COMMAND}`);
-                    exec(HOOK_COMMAND, { cwd: PM_CWD }, (err, stdout, stderr) => {
-                      console.log('ERROR:',  err);
+                    exec(config.hookCommand, { cwd: config.pmCwd }, (err, stdout, stderr) => {
                       console.log('STDOUT:', stdout);
                       console.log('STDERR:', stderr);
+
+                      lastHook = {
+                        dateTime: new Date(),
+                        commitMessage: body.head_commit.message,
+                        stdout,
+                        stderr
+                      };
                     });
                   }
 
@@ -159,9 +86,15 @@ function startWebhookServer(config) {
           });
         break;
 
-      case '/ping':
-        response.writeHead(404);
-        response.end('Webhook server is listening.\n');
+      case '/status':
+        response.writeHead(200);
+        response.end(JSON.stringify({
+          status:   'OK',
+          protocol: config.protocol,
+          port:     config.port,
+          branch:   config.branch,
+          lastHook
+        }));
         break;
 
       default:
@@ -172,10 +105,10 @@ function startWebhookServer(config) {
   }
 
   function createServer(webhookServer) {
-    if (PROTOCOL === 'https')
+    if (config.protocol === 'https')
       return https.createServer({
-        key:  fs.readFileSync(SSL_KEY_PATH,  'utf8'),
-        cert: fs.readFileSync(SSL_CERT_PATH, 'utf8')
+        key:  fs.readFileSync(config.sslKeyPath,  'utf8'),
+        cert: fs.readFileSync(config.sslCertPath, 'utf8')
       }, webhookServer);
     else
       return http.createServer(webhookServer);
@@ -183,64 +116,30 @@ function startWebhookServer(config) {
 
   ///////////////////// MAIN ///////////////////////
 
-  // start the webhook server, then check to see if a
-  // webhook already exists on github. If not, create one.
-  // return new Promise((resolve, reject) => {
-  //   let server = createServer(webhookServer);
-
-  //   server.listen(PORT, () => {
-
-  //     console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
-  //     console.log('Checking whether webhook is active.');
-
-  //     Promise.all([
-  //       getExternalIP(),
-  //       getWebhookData()
-  //     ])
-  //     .spread((externalIP, webhookData) => {
-  //       if (webhookExists(externalIP, webhookData)) {
-  //         console.log('Webhook is active.');
-  //         return Promise.resolve();
-  //       } else {
-  //         console.log('Creating webhook...');
-  //         return createWebhook(externalIP).then(JSON.parse).then(console.log);
-  //       }
-  //     })
-  //     .then(() => resolve({ server))
-  //     .catch(err => console.log("ERROR:", err));
-
-  //   });
-  // });
-
   return new Promise((resolve, reject) => {
-    let server = createServer(webhookServer);
-    server.listen(PORT, () => {
-      console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
-      getExternalIP()
-        .then(createWebhook)
-        .then(JSON.parse)
-        .then(webhook => {
-          resolve({ server, webhook })
-        })
-        .catch(console.log);
+
+    let server;
+    try {
+      server = createServer(webhookServer);
+    } catch(error) {
+      reject(error);
+      return;
+    }
+
+    server.listen(config.port, () => {
+      console.log(`${config.appName}: webhook server running on port ${config.port}.`);
+      resolve(server);
+    });
+
+    server.on('error', error => {
+      console.log(`${config.appName}: error starting webhook server.`);
+      console.log(error);
+      reject(error);
     });
   });
-
-
-
-
-  // return new Promise((resolve, reject) => {
-  //   let server = createServer(webhookServer);
-
-  //   server.listen(PORT, () => {
-  //     console.log(`Webhook server for ${APP_NAME} running on port ${PORT}.`);
-  //     resolve(server);
-  //   });
-  // });
-
 }
 
 //////////////// EXPORTS ///////////////////
 
-module.exports = startWebhookServer;
+module.exports = startServer;
 
