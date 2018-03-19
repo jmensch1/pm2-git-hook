@@ -4,7 +4,7 @@ Set up a git webhook for your pm2 app in 5 minutes. Start, stop, or check the st
 
 #### 1. Install this  module.
 
-`pm2 install pm2-git-hook`
+`pm2 install jmensch1/pm2-git-hook`
 
 #### 2. Specify a command to run when the hook fires.
 
