@@ -27,7 +27,7 @@ apps:[{
 
 `pm2 trigger pm2-git-hook start myApp`
 
-This will start an `http` server running on port `9000` that listens for push notifications from github. It will run the command in the root directory of your app whenever you push to `master`.
+This will start an `http` server running on port `9000` that listens for push notifications from github. It will run the command in the `cwd` of your app whenever you push to `master`.
 
 If you want to make sure server is working, run `curl http://localhost:9000/status`. Alternatively, run `pm2 trigger pm2-git-hook status myApp`, which simply executes the `curl` command.
 
@@ -40,7 +40,6 @@ Go to Settings -> Webhook on github. Create a hook with payload URL `http://{hos
 | Property | Description | Required | Default |
 | ------------| ----------- | -------- | ------- |
 | command | The command to run when github sends a push notification. | true |
-| cwd | The directory to run the command in. | false | the root of the app |
 | branch | The branch to listen for pushes on. | false | master |
 | port | The port to run the server on. | false | 9000 |
 | protocol | `http` or `https`. Use `https` if you want SSL verification on your hook.| false | http |

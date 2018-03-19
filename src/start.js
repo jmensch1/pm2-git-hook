@@ -17,13 +17,13 @@ function startServer(config) {
 
   config = {
     command:      config.command,
-    cwd:          config.cwd || config.pmCwd,
     branch:       config.branch || 'master',
     port:         config.port || 9000,
     protocol:     config.protocol || 'http',
     sslKeyPath:   config.sslKeyPath,
     sslCertPath:  config.sslCertPath,
     secret:       config.secret,
+    pmCwd:        config.pmCwd,
     appName:      config.appName
   };
 
@@ -71,14 +71,14 @@ function startServer(config) {
                   console.log(`push to branch: ${branch}.`);
                   console.log(`commit message: ${body.head_commit.message}.`);
                   console.log(`running command: ${config.command}`);
-                  console.log(`in directory: ${config.cwd}`);
+                  console.log(`in directory: ${config.pmCwd}`);
 
                   lastHook = {
                     dateTime: new Date(),
                     commitMessage: body.head_commit.message
                   };
 
-                  execCmd(config.command, { cwd: config.cwd })
+                  execCmd(config.command, { cwd: config.pmCwd })
                     .then(stdout => {
                       console.log('Hook command succeeded.');
                       console.log(stdout);
