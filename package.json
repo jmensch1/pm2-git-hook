@@ -1,5 +1,5 @@
 {
-  "name": "pm2-autohook",
+  "name": "pm2-git-hook",
   "version": "1.0.0",
   "description": "automatically create a webhook when you run pm2",
   "main": "src/index.js",

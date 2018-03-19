@@ -5,11 +5,12 @@ const pmx = require('pmx'),
       initConfig = require('./initConfig'),
       getAppConfig = require('./getAppConfig'),
       validateConfig = require('./validateConfig'),
-      startServer = require('./start');
+      startServer = require('./start'),
+      { execCmd } = require('./utils');
 
 ///////////////// THE MODULE //////////////////
 
-pmx.initModule(initConfig, function(err, config) {
+pmx.initModule(initConfig, (err, config) => {
 
   if (err) {
     console.log('Error running pm2-autohook:', err);
@@ -29,6 +30,7 @@ pmx.initModule(initConfig, function(err, config) {
         .then(validateConfig)
         .then(startServer)
         .then(server => {
+          console.log('server', server);
           servers[appName] = server;
           reply({ success: true });
         })
@@ -47,10 +49,14 @@ pmx.initModule(initConfig, function(err, config) {
       });
   });
 
-  pmx.action('list', reply => {
-    reply({ servers: Object.keys(servers) });
+  pmx.action('status', (appName, reply) => {
+    if (!servers[appName])
+      reply({ error: `There is no webhook server running for ${appName}.` });
+    else
+      execCmd(`curl -k ${servers[appName].statusUrl}`)
+        .then(JSON.parse)
+        .then(status => reply({ status }))
+        .catch(error => reply({ error }));
   });
 
 });
-
-

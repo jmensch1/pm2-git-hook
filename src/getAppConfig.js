@@ -18,12 +18,12 @@ module.exports = (appName) => {
           return;
         }
 
-        if (!proc.pm2_env.env.autohook) {
-          reject(`There is no pm2-autohook configuration for ${appName}.`);
+        if (!proc.pm2_env.env.githook) {
+          reject(`There is no pm2-git-hook configuration for ${appName}.`);
           return;
         }
 
-        let config = JSON.parse(proc.pm2_env.env.autohook);
+        let config = JSON.parse(proc.pm2_env.env.githook);
         config.appName = appName;
         config.pmCwd = proc.pm2_env.pm_cwd;
 

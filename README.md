@@ -8,15 +8,17 @@ Set up a git webhook for your pm2 app in 5 minutes. Start, stop, or check the st
 
 #### 2. Specify a command to run when the hook fires.
 
-Add a command to your `ecosystem.json` file, for example:
+Add a command to the `env.githook` section of your `ecosystem.json` file, for example:
 
 ```
 apps:[{
   name: 'myApp',
   ...
 
-  githook: {
-    command: 'git pull && npm install && pm2 restart myApp'
+  env: {
+    githook: {
+      command: 'git pull && npm install && pm2 restart myApp'
+    }
   }
 }]
 ```

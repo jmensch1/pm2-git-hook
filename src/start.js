@@ -7,7 +7,7 @@ const crypto = require('crypto'),
       https = require('https'),
       { exec } = require('child_process'),
       url = require('url'),
-      httpHelpers = require('./httpHelpers');
+      { execCmd, getReqBody } = require('./utils');
 
 //////////////// PRIVATE ///////////////////
 
@@ -16,16 +16,18 @@ function startServer(config) {
   /////////////////// CONFIG ////////////////////
 
   config = {
-    hookCommand:  config.hookCommand,
+    command:      config.command,
     branch:       config.branch || 'master',
     port:         config.port || 9000,
     protocol:     config.protocol || 'http',
     sslKeyPath:   config.sslKeyPath,
     sslCertPath:  config.sslCertPath,
-    hookSecret:   config.hookSecret,
+    secret:       config.secret,
     appName:      config.appName,
     pmCwd:        config.pmCwd
   };
+
+  console.log("CONFIG:", config);
 
   /////////////////// GLOBALS /////////////////////
 
@@ -44,11 +46,11 @@ function startServer(config) {
 
     switch(urlInfo.pathname) {
 
-      case '/webhook':
-        httpHelpers.getReqBody(request)
+      case '/':
+        getReqBody(request)
           .then(body => {
             let xHubSig = request.headers['x-hub-signature'],
-                valid = validSignature(xHubSig, body),
+                valid = !xHubSig || validSignature(xHubSig, body),
                 event = request.headers['x-github-event'];
 
             if (valid)
@@ -56,28 +58,36 @@ function startServer(config) {
                 case 'ping':
                   console.log(`${config.appName}: received ping from github.`);
                   break;
+
                 case 'push':
                   body = JSON.parse(body);
                   let branch = body.ref.replace('refs/heads/', '');
 
                   if (branch === config.branch) {
-                    console.log(`${config.appName}: push to branch ${branch}.`);
+                    console.log(`------- ${config.appName} --------`)
+                    console.log(`push to branch: ${branch}.`);
                     console.log(`commit message: ${body.head_commit.message}.`);
-                    console.log(`running hook command: "${config.hookCommand}"`);
+                    console.log(`running command: ${config.hookCommand}`);
 
-                    exec(config.hookCommand, { cwd: config.pmCwd }, (err, stdout, stderr) => {
-                      console.log('STDOUT:', stdout);
-                      console.log('STDERR:', stderr);
+                    lastHook = {
+                      dateTime: new Date(),
+                      commitMessage: body.head_commit.message
+                    };
 
-                      lastHook = {
-                        dateTime: new Date(),
-                        commitMessage: body.head_commit.message,
-                        stdout,
-                        stderr
-                      };
-                    });
+                    execCmd(config.hookCommand, { cwd: config.pmCwd })
+                      .then(stdout => {
+                        console.log('Hook command succeeded.');
+                        console.log(stdout);
+                        lastHook.success = true;
+                        lastHook.output = stdout;
+                      })
+                      .catch(stderr => {
+                        console.log('Hook command failed.');
+                        console.log(stderr);
+                        lastHook.success = false;
+                        lastHook.output = stderr;
+                      });
                   }
-
                   break;
               }
 
@@ -128,7 +138,10 @@ function startServer(config) {
 
     server.listen(config.port, () => {
       console.log(`${config.appName}: webhook server running on port ${config.port}.`);
-      resolve(server);
+      resolve({
+        close: server.close.bind(server),
+        statusUrl: `${config.protocol}://localhost:${config.port}/status`
+      });
     });
 
     server.on('error', error => {
@@ -142,4 +155,3 @@ function startServer(config) {
 //////////////// EXPORTS ///////////////////
 
 module.exports = startServer;
-
