@@ -40,6 +40,7 @@ Go to Settings -> Webhook on github. Create a hook with payload URL `http://{hos
 | Property | Description | Required | Default |
 | ------------| ----------- | -------- | ------- |
 | command | The command to run when github sends a push notification. | true |
+| cwd | The directory to run the command in. | false | the root of the app |
 | branch | The branch to listen for pushes on. | false | master |
 | port | The port to run the server on. | false | 9000 |
 | protocol | `http` or `https`. Use `https` if you want SSL verification on your hook.| false | http |

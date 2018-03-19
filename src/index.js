@@ -13,10 +13,10 @@ const pmx = require('pmx'),
 pmx.initModule(initConfig, (err, config) => {
 
   if (err) {
-    console.log('Error running pm2-autohook:', err);
+    console.log('Error running pm2-git-hook:', err);
     return false;
   } else
-    console.log('pm2-autohook is running.');
+    console.log('pm2-git-hook is running.');
 
   ////////////// ACTIONS /////////////
 
@@ -30,7 +30,6 @@ pmx.initModule(initConfig, (err, config) => {
         .then(validateConfig)
         .then(startServer)
         .then(server => {
-          console.log('server', server);
           servers[appName] = server;
           reply({ success: true });
         })
@@ -43,7 +42,8 @@ pmx.initModule(initConfig, (err, config) => {
     if (!servers[appName])
       reply({ error: `There is no webhook server running for ${appName}.` });
     else
-      servers[appName].close(() =>{
+      servers[appName].close(() => {
+        console.log(`${appName}: webhook server stopped.`);
         delete servers[appName];
         reply({ success: true });
       });

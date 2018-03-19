@@ -17,17 +17,15 @@ function startServer(config) {
 
   config = {
     command:      config.command,
+    cwd:          config.cwd || config.pmCwd,
     branch:       config.branch || 'master',
     port:         config.port || 9000,
     protocol:     config.protocol || 'http',
     sslKeyPath:   config.sslKeyPath,
     sslCertPath:  config.sslCertPath,
     secret:       config.secret,
-    appName:      config.appName,
-    pmCwd:        config.pmCwd
+    appName:      config.appName
   };
-
-  console.log("CONFIG:", config);
 
   /////////////////// GLOBALS /////////////////////
 
@@ -36,7 +34,7 @@ function startServer(config) {
   ////////////////// FUNCTIONS ////////////////////
 
   function validSignature(xHubSig, body) {
-    let hmac = crypto.createHmac('sha1', config.hookSecret);
+    let hmac = crypto.createHmac('sha1', config.secret || '');
     hmac.update(body);
     return xHubSig === 'sha1=' + hmac.digest('hex');
   }
@@ -53,45 +51,50 @@ function startServer(config) {
                 valid = !xHubSig || validSignature(xHubSig, body),
                 event = request.headers['x-github-event'];
 
-            if (valid)
-              switch(event) {
-                case 'ping':
-                  console.log(`${config.appName}: received ping from github.`);
-                  break;
+            if (!valid) {
+              response.writeHead(403);
+              response.end('Wrong secret.');
+              return;
+            }
 
-                case 'push':
-                  body = JSON.parse(body);
-                  let branch = body.ref.replace('refs/heads/', '');
+            switch(event) {
+              case 'ping':
+                console.log(`${config.appName}: received ping from github.`);
+                break;
 
-                  if (branch === config.branch) {
-                    console.log(`------- ${config.appName} --------`)
-                    console.log(`push to branch: ${branch}.`);
-                    console.log(`commit message: ${body.head_commit.message}.`);
-                    console.log(`running command: ${config.hookCommand}`);
+              case 'push':
+                body = JSON.parse(body);
+                let branch = body.ref.replace('refs/heads/', '');
 
-                    lastHook = {
-                      dateTime: new Date(),
-                      commitMessage: body.head_commit.message
-                    };
+                if (branch === config.branch) {
+                  console.log(`------- ${config.appName} --------`)
+                  console.log(`push to branch: ${branch}.`);
+                  console.log(`commit message: ${body.head_commit.message}.`);
+                  console.log(`running command: ${config.command}`);
+                  console.log(`in directory: ${config.cwd}`);
 
-                    execCmd(config.hookCommand, { cwd: config.pmCwd })
-                      .then(stdout => {
-                        console.log('Hook command succeeded.');
-                        console.log(stdout);
-                        lastHook.success = true;
-                        lastHook.output = stdout;
-                      })
-                      .catch(stderr => {
-                        console.log('Hook command failed.');
-                        console.log(stderr);
-                        lastHook.success = false;
-                        lastHook.output = stderr;
-                      });
-                  }
-                  break;
-              }
+                  lastHook = {
+                    dateTime: new Date(),
+                    commitMessage: body.head_commit.message
+                  };
 
-            response.writeHead(valid ? 200 : 403);
+                  execCmd(config.command, { cwd: config.cwd })
+                    .then(stdout => {
+                      console.log('Hook command succeeded.');
+                      console.log(stdout);
+                      lastHook.success = true;
+                    })
+                    .catch(stderr => {
+                      console.log('Hook command failed.');
+                      console.log(stderr);
+                      lastHook.success = false;
+                      lastHook.error = stderr;
+                    });
+                }
+                break;
+            }
+
+            response.writeHead(200);
             response.end();
           });
         break;
