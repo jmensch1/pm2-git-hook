@@ -22,8 +22,24 @@ module.exports = (appName) => {
           reject(`There is no pm2-git-hook configuration for ${appName}.`);
           return;
         }
-
-        let config = JSON.parse(proc.pm2_env.env.githook);
+        let config
+        if (typeof proc.pm2_env.env.githook === 'string') {
+          try {
+            config = JSON.parse(proc.pm2_env.env.githook);
+          }
+          catch (error) {
+            if (error instanceof SyntaxError) {
+              // bad json
+            }
+            else {
+              reject(error.message);
+              return;
+            }
+          }
+        }
+        if (typeof config === 'undefined') {
+          config = proc.pm2_env.env.githook;
+        }
         config.appName = appName;
         config.pmCwd = proc.pm2_env.pm_cwd;
 
