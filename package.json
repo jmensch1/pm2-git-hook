@@ -14,7 +14,7 @@
   "license": "ISC",
   "dependencies": {
     "crypto": "^1.0.1",
-    "pm2": "^2.6.1",
+    "pm2": "^5.2.2",
     "pmx": "^1.2.0"
   }
 }
